@@ -24,8 +24,6 @@ Examples:
 - **`internal/mount`** — `hanwen/go-fuse/v2` NodeFS. Read-only. Long entry/attr TTL for digest-pinned nodes (immutable); short TTL for tags. (Named `mount` rather than `fuse` to avoid clashing with the `go-fuse/v2/fuse` import.)
 - **`internal/oci`** — go-containerregistry wrapper. `Resolve(ref)` → manifest + config + layer descriptors. `authn.DefaultKeychain`. Platform selection from index manifests.
 - **`internal/layer`** — `jonjohnsonjr/targz` (tarfs/ranger/gsip). `Open` streams the layer blob once via `tarfs.Index` to build a gzip-checkpointed index plus tar TOC, both persisted by layer digest. Subsequent reads issue Range requests for just the bytes a file actually needs. Layer blobs are not persisted, only indexes.
-
-  **`third_party/targz`** vendors targz (via `replace` in go.mod) with two upstream-bug fixes: `gsip.Reader.ReadAt` discarded partial bytes on short read at EOF (now returns `(n, io.EOF)`); `acquireReader` mis-passed total size as section length, letting Range requests spill past blob end.
 - **`internal/merge`** — folds N layer indexes into one merged tree applying OCI whiteouts (`.wh.<name>`) and opaque markers (`.wh..wh..opq`), bottom-up. Built once per image digest, cached on disk. Each merged entry records `(name, mode, size, layer-of-origin, in-layer-offset)`.
 - **`internal/cache`** — disk cache at `$XDG_CACHE_HOME/ocifuse` (platform default fallback). Stores manifests, configs, layer indexes, merged trees, all keyed by digest (immutable). Tag→digest resolutions cached separately with short TTL.
 

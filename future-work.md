@@ -9,4 +9,3 @@
 - **Content-addressed dedup** — share file content across images that reuse identical blobs and offsets.
 - **macFUSE polish** — once Linux is solid, exercise on darwin, document setup, work around any kext quirks.
 - **Tag→digest disk persistence with TTL** — fresh-mount tag resolution still costs ~200ms per ref (correctly going to network because tags move). A short-TTL on-disk record could amortize across restarts within a window without sacrificing correctness.
-- **Upstream the `gsip` patches** — the two fixes vendored under `third_party/targz/gsip/gsip.go` (short-read `io.EOF` semantics and the `acquireReader` SectionReader length bug) are upstreamable.

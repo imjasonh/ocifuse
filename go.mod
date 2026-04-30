@@ -6,7 +6,7 @@ require (
 	github.com/chainguard-dev/clog v1.8.0
 	github.com/google/go-containerregistry v0.21.5
 	github.com/hanwen/go-fuse/v2 v2.10.1
-	github.com/jonjohnsonjr/targz v0.0.0-20260223215326-ffa36f778c3b
+	github.com/jonjohnsonjr/targz v0.0.0-20260430225515-be2b5d38a861
 	github.com/sethvargo/go-envconfig v1.3.0
 	golang.org/x/sync v0.20.0
 )
@@ -24,5 +24,3 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
-
-replace github.com/jonjohnsonjr/targz => ./third_party/targz

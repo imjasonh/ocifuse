@@ -72,10 +72,6 @@ macFUSE on darwin is theoretically supported but unreliable in practice; the con
   `scripts/docker-run.sh` does this inside the container.
 - **Tab completion can't enumerate registries.** First time you type a registry/repo/tag segment it's all manual; after that the kernel caches what you've touched.
 
-## Vendored patches
-
-`third_party/targz/` (`replace`d in `go.mod`) carries two upstreamable `gsip` fixes — one short-read EOF correction, one `SectionReader` length bug.
-
 ## Prior art
 
 This project takes its central idea from [`jonjohnsonjr/dagdotdev`](https://github.com/jonjohnsonjr/dagdotdev), which uses the same `gsip` + `tarfs` + Range-request approach to serve OCI image content over HTTP. ocifuse rearranges those pieces behind a FUSE filesystem instead of a web UI.
