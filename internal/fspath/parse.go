@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
 // Parsed is the result of parsing a FUSE-relative path.
@@ -34,6 +35,10 @@ type Parsed struct {
 	Intermediate []string
 	Ref          name.Reference
 	InImage      string
+	// Platform is set when the ref segment carries a "~os-arch[-variant]"
+	// suffix (e.g. "ubuntu:22.04~linux-arm64"). Nil when the ref doesn't
+	// pin a platform; callers should fall back to a mount-wide default.
+	Platform *v1.Platform
 }
 
 // Parse splits a slash-separated path (relative to the FUSE mount root) at
@@ -63,6 +68,22 @@ func Parse(p string) (Parsed, error) {
 		return Parsed{Intermediate: segs}, nil
 	}
 
+	// Strip an optional "~os-arch[-variant]" platform suffix from the
+	// ref-bearing segment before passing to name.ParseReference. The OCI
+	// tag/digest grammar doesn't allow '~', so '~' here is unambiguously
+	// our suffix marker.
+	var platform *v1.Platform
+	last := segs[refIdx]
+	if i := strings.IndexByte(last, '~'); i >= 0 {
+		spec := last[i+1:]
+		segs[refIdx] = last[:i]
+		p, err := parsePlatformSpec(spec)
+		if err != nil {
+			return Parsed{}, fmt.Errorf("parse platform %q: %w", spec, err)
+		}
+		platform = p
+	}
+
 	refStr := strings.Join(segs[:refIdx+1], "/")
 	ref, err := name.ParseReference(refStr)
 	if err != nil {
@@ -73,28 +94,39 @@ func Parse(p string) (Parsed, error) {
 	if tail := segs[refIdx+1:]; len(tail) > 0 {
 		inImage = "/" + path.Join(tail...)
 	}
-	return Parsed{Ref: ref, InImage: inImage}, nil
+	return Parsed{Ref: ref, InImage: inImage, Platform: platform}, nil
+}
+
+// parsePlatformSpec converts "linux-arm64" or "linux-arm64-v8" (our
+// path-friendly form) to a v1.Platform. We swap '-' for '/' and defer to
+// go-containerregistry's parser, so the supported grammar matches OCI's
+// canonical "os/arch[/variant]".
+func parsePlatformSpec(s string) (*v1.Platform, error) {
+	if s == "" {
+		return nil, fmt.Errorf("empty platform spec")
+	}
+	return v1.ParsePlatform(strings.ReplaceAll(s, "-", "/"))
 }
 
 // isRegistrySegment reports whether s looks like a registry hostname (with
 // optional port), and is used to suppress ref-boundary detection on the first
 // segment when its ':' is really a host:port separator.
 //
+// A segment containing ':' is a registry only if the part after ':' is all
+// digits (a port). A name:tag pair like "ubuntu:22.04" — even with a dot in
+// the tag — is not a registry. A segment with no ':' is a registry only if
+// it contains '.' (a dotted hostname).
+//
 // Bare "localhost" is intentionally not recognized: go-containerregistry's
 // reference parser treats it as a Docker Hub username, so a "localhost/foo:tag"
 // path resolves to index.docker.io/localhost/foo:tag. Use "localhost:port" for
 // a real local registry.
 func isRegistrySegment(s string) bool {
-	if strings.Contains(s, ".") {
-		return true
-	}
-	if i := strings.LastIndex(s, ":"); i > 0 {
+	if i := strings.LastIndex(s, ":"); i >= 0 {
 		port := s[i+1:]
-		if port != "" && allDigits(port) {
-			return true
-		}
+		return port != "" && allDigits(port)
 	}
-	return false
+	return strings.Contains(s, ".")
 }
 
 func allDigits(s string) bool {

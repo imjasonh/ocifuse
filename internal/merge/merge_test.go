@@ -167,6 +167,36 @@ func TestMerge_Children(t *testing.T) {
 	}
 }
 
+func TestLayerTree_PreservesWhiteouts(t *testing.T) {
+	// LayerTree must NOT filter whiteout markers — they're real entries
+	// in the per-layer view.
+	l := buildLayer(t, []tar.Header{
+		{Name: "etc/", Typeflag: tar.TypeDir},
+		{Name: "etc/foo"},
+		{Name: "etc/.wh.bar"},
+		{Name: "etc/.wh..wh..opq"},
+	}, map[string]string{"etc/foo": "F"})
+
+	tree := LayerTree(l)
+	for _, p := range []string{"/etc/foo", "/etc/.wh.bar", "/etc/.wh..wh..opq"} {
+		if _, err := tree.Get(p); err != nil {
+			t.Errorf("%s missing: %v", p, err)
+		}
+	}
+}
+
+func TestLayerTree_SynthesizesMissingParent(t *testing.T) {
+	l := buildLayer(t, []tar.Header{
+		{Name: "deep/nested/file"},
+	}, map[string]string{"deep/nested/file": "X"})
+	tree := LayerTree(l)
+	for _, p := range []string{"/deep", "/deep/nested", "/deep/nested/file"} {
+		if _, err := tree.Get(p); err != nil {
+			t.Errorf("%s missing: %v", p, err)
+		}
+	}
+}
+
 func TestMerge_SynthesizesMissingParent(t *testing.T) {
 	// Layer has b/y but no explicit b/ entry; merged tree must still expose /b.
 	l0 := buildLayer(t, []tar.Header{

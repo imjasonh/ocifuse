@@ -88,6 +88,21 @@ func TestParse(t *testing.T) {
 			in:      "ubuntu:::",
 			wantErr: true,
 		},
+		{
+			in:          "index.docker.io/library/ubuntu:22.04~linux-arm64/etc/os-release",
+			wantRef:     "index.docker.io/library/ubuntu:22.04",
+			wantInImage: "/etc/os-release",
+		},
+		{
+			in:          "ubuntu:22.04~linux-arm64",
+			wantRef:     "index.docker.io/library/ubuntu:22.04",
+			wantInImage: "/",
+		},
+		{
+			in:          "gcr.io/distroless/base:nonroot~linux-arm64-v8/usr/bin/sh",
+			wantRef:     "gcr.io/distroless/base:nonroot",
+			wantInImage: "/usr/bin/sh",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
@@ -121,6 +136,47 @@ func TestParse(t *testing.T) {
 
 			if !equalSegs(got.Intermediate, tc.wantInterSeg) {
 				t.Errorf("Intermediate = %v, want %v", got.Intermediate, tc.wantInterSeg)
+			}
+		})
+	}
+}
+
+func TestParse_Platform(t *testing.T) {
+	cases := []struct {
+		in           string
+		wantOS       string
+		wantArch     string
+		wantVariant  string
+		wantPlatform bool
+	}{
+		{in: "ubuntu:22.04", wantPlatform: false},
+		{in: "ubuntu:22.04~linux-arm64", wantPlatform: true, wantOS: "linux", wantArch: "arm64"},
+		{in: "ubuntu:22.04~linux-arm64-v8", wantPlatform: true, wantOS: "linux", wantArch: "arm64", wantVariant: "v8"},
+		{in: "ubuntu:22.04~windows-amd64", wantPlatform: true, wantOS: "windows", wantArch: "amd64"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			got, err := Parse(tc.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.wantPlatform {
+				if got.Platform != nil {
+					t.Errorf("Platform = %+v, want nil", got.Platform)
+				}
+				return
+			}
+			if got.Platform == nil {
+				t.Fatalf("Platform = nil, want %s/%s", tc.wantOS, tc.wantArch)
+			}
+			if got.Platform.OS != tc.wantOS {
+				t.Errorf("OS = %q, want %q", got.Platform.OS, tc.wantOS)
+			}
+			if got.Platform.Architecture != tc.wantArch {
+				t.Errorf("Architecture = %q, want %q", got.Platform.Architecture, tc.wantArch)
+			}
+			if got.Platform.Variant != tc.wantVariant {
+				t.Errorf("Variant = %q, want %q", got.Platform.Variant, tc.wantVariant)
 			}
 		})
 	}

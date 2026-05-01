@@ -82,29 +82,58 @@ func (i *Image) BlobURL(d v1.Hash) string {
 		reg.Scheme(), reg.Name(), i.Ref.Context().RepositoryStr(), d.String())
 }
 
-// ResolveDigest returns just the manifest digest for ref, useful for
-// resolving a tag to a digest without pulling layers.
+// ResolveDigest returns the manifest digest for ref, useful for resolving
+// a tag to a digest without pulling layers.
 func ResolveDigest(ctx context.Context, ref name.Reference, platform v1.Platform) (v1.Hash, error) {
+	d, _, err := ResolveDigestAndPlatforms(ctx, ref, platform)
+	return d, err
+}
+
+// PlatformDigest pairs a platform with the digest of its single-platform
+// image manifest within an index.
+type PlatformDigest struct {
+	Platform v1.Platform
+	Digest   v1.Hash
+}
+
+// ResolveDigestAndPlatforms is like ResolveDigest but also returns the
+// list of platforms in the index manifest (when ref points at an index).
+// For non-index refs, the platforms slice is nil.
+func ResolveDigestAndPlatforms(ctx context.Context, ref name.Reference, platform v1.Platform) (v1.Hash, []PlatformDigest, error) {
 	tr, err := buildTransport(ctx, ref)
 	if err != nil {
-		return v1.Hash{}, err
+		return v1.Hash{}, nil, err
 	}
 	desc, err := remote.Get(ref, remote.WithContext(ctx), remote.WithTransport(tr), remote.WithPlatform(platform))
 	if err != nil {
-		return v1.Hash{}, err
+		return v1.Hash{}, nil, err
 	}
-	if desc.MediaType.IsIndex() {
-		idx, err := desc.ImageIndex()
-		if err != nil {
-			return v1.Hash{}, err
-		}
-		img, err := imageFromIndex(idx, platform)
-		if err != nil {
-			return v1.Hash{}, err
-		}
-		return img.Digest()
+	if !desc.MediaType.IsIndex() {
+		return desc.Digest, nil, nil
 	}
-	return desc.Digest, nil
+	idx, err := desc.ImageIndex()
+	if err != nil {
+		return v1.Hash{}, nil, err
+	}
+	mf, err := idx.IndexManifest()
+	if err != nil {
+		return v1.Hash{}, nil, err
+	}
+	var picked v1.Hash
+	var pairs []PlatformDigest
+	for _, m := range mf.Manifests {
+		if m.Platform == nil {
+			continue
+		}
+		pairs = append(pairs, PlatformDigest{Platform: *m.Platform, Digest: m.Digest})
+		if m.Platform.OS == platform.OS && m.Platform.Architecture == platform.Architecture {
+			picked = m.Digest
+		}
+	}
+	if (picked == v1.Hash{}) {
+		return v1.Hash{}, nil, fmt.Errorf("no manifest for %s/%s in index", platform.OS, platform.Architecture)
+	}
+	return picked, pairs, nil
 }
 
 // buildTransport returns an authenticated HTTP transport for ref's registry.

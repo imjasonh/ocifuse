@@ -60,5 +60,22 @@ docker run --rm --privileged --device /dev/fuse \
     echo "--- tag symlink visible alongside digest sibling ---"
     ls -la /mnt/oci/index.docker.io/library/ | grep -q "alpine:latest -> alpine@sha256:"
 
+    echo "--- @@meta/digest matches alpine:latest digest ---"
+    img_digest=$(cat ${BASE}/@@meta/digest)
+    sym_target=$(readlink ${BASE})
+    case "${sym_target}" in *"${img_digest}"*) ;; *) echo "MISMATCH ${img_digest} vs ${sym_target}"; exit 1;; esac
+
+    echo "--- per-layer view: bytes match merged view ---"
+    layer=$(ls ${BASE}/@@meta/layers/ | head -1)
+    via_layer=$(sha256sum ${BASE}/@@meta/layers/${layer}/etc/alpine-release | cut -d" " -f1)
+    via_merged=$(sha256sum ${BASE}/etc/alpine-release | cut -d" " -f1)
+    test "${via_layer}" = "${via_merged}" || { echo "layer/merged mismatch: ${via_layer} vs ${via_merged}"; exit 1; }
+
+    echo "--- per-ref platform: arm64 ubuntu ---"
+    grep -q "VERSION_ID=\"22.04\"" "/mnt/oci/index.docker.io/library/ubuntu:22.04~linux-arm64/etc/os-release"
+
+    echo "--- platform-expansion siblings appear after bare-tag access ---"
+    ls /mnt/oci/index.docker.io/library/ | grep -q "alpine:latest~linux-amd64"
+
     echo "ALL OK"
   '

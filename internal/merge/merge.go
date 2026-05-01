@@ -70,6 +70,39 @@ func (t *Tree) Children(p string) []*Entry {
 	return out
 }
 
+// LayerTree builds a tree from a single layer's entries WITHOUT applying
+// whiteout semantics. Whiteout markers (".wh.<name>", ".wh..wh..opq")
+// appear as ordinary files. Missing parent dirs are synthesized. This is
+// the per-layer view used under @@meta/layers/<digest>/.
+func LayerTree(entries []*tarfs.Entry) *Tree {
+	tree := &Tree{
+		entries: map[string]*Entry{
+			"/": {Path: "/", Header: tar.Header{Typeflag: tar.TypeDir, Name: "/", Mode: 0o755}},
+		},
+		children: map[string][]string{},
+	}
+	for _, e := range entries {
+		full := canon("/" + e.Filename)
+		tree.entries[full] = &Entry{
+			Path:     full,
+			Header:   e.Header,
+			LayerIdx: 0,
+		}
+	}
+	synthesizeParents(tree)
+	for p := range tree.entries {
+		if p == "/" {
+			continue
+		}
+		parent := canon(path.Dir(p))
+		tree.children[parent] = append(tree.children[parent], p)
+	}
+	for parent := range tree.children {
+		sort.Strings(tree.children[parent])
+	}
+	return tree
+}
+
 // Merge folds layers (lowest first) into a single tree.
 func Merge(layers [][]*tarfs.Entry) *Tree {
 	tree := &Tree{

@@ -65,7 +65,7 @@ func TestClassifySegment(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			kind, ref, _, err := classifySegment(tc.accumulated, tc.child)
+			kind, ref, _, _, err := classifySegment(tc.accumulated, tc.child)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

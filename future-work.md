@@ -1,11 +1,5 @@
 # Future work
 
-### Soon
-
-- **Per-ref platform selection** — encode platform in the ref segment (e.g. `<ref>~linux-arm64`) so a single mount can serve multiple architectures.
-- **Injected `meta` directory** -- add a directory `@@meta` (or something) that includes `./layers/<sha256:...>` for each layer in the image, and `digest` that is the image's digest so you can `cat /mnt/oci/<ref:tag(~platform)>/@@meta/digest` to get the image's digest. `./layers` directories also have a `@@meta/layer-digest` for that layer's digest.
-- **Per-layer view** — `<ref>/layers/<layer-digest>/...` exposing each raw layer alongside the merged view, for debugging overlays and whiteouts.
-
 ### Medium-term
 
 - **Tag listing** — populate repo directories from the registry catalog API where the registry permits.

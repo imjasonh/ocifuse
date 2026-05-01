@@ -16,7 +16,14 @@ VERSION_ID=3.23.4
 <mount>/<registry>/<repo...>/<ref>/<in-image-path>
 ```
 
-`<ref>` is the first path segment containing `:` (a tag) or `@` (a digest). Tags surface as symlinks to their `repo@sha256:...` digest sibling. A leading segment without `.` is treated as Docker Hub shorthand. Multi-arch defaults to `linux/amd64`; override via `PLATFORM`.
+`<ref>` is the first path segment containing `:` (a tag) or `@` (a digest). Tags surface as symlinks to their `repo@sha256:...` digest sibling. A leading segment without `.` is treated as Docker Hub shorthand.
+
+Multi-arch defaults to `linux/amd64`; override globally via `PLATFORM` or per-ref by appending `~os-arch[-variant]`, e.g. `ubuntu:22.04~linux-arm64`. After accessing a multi-arch tag, the parent directory shows `<tag>~<os>-<arch>` siblings for each platform in the index, so tab completion of `<tag>~<TAB>` enumerates them.
+
+Each image root also exposes a synthetic `@@meta/` directory:
+- `@@meta/digest` — the image manifest digest as text.
+- `@@meta/layers/<sha256:...>/` — the raw tar contents of one layer (whiteouts visible). Useful for debugging overlays.
+- `@@meta/layers/<sha256:...>/@@meta/layer-digest` — that layer's digest as text.
 
 ## Usage
 
