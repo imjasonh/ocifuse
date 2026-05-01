@@ -29,7 +29,8 @@ Env vars:
 - `CACHE_DIR` — default `$XDG_CACHE_HOME/ocifuse`.
 - `CACHE_MAX_SIZE` — disk LRU cap, default `1GB` (`K`/`M`/`G`/`T` suffixes; `0` disables).
 - `MEMORY_MAX_SIZE` — in-memory chunk cache LRU cap, default `1GB`.
-- `DEBUG` — verbose go-fuse logging.
+- `TAG_TTL` — kernel dentry TTL on tag symlinks, default `1m`. Bounds tag-update detection latency. Standard Go duration syntax (`30s`, `5m`, `1h`).
+- `DEBUG` — verbose go-fuse logging plus debug-level structured logs.
 
 Auth via go-containerregistry's `authn.DefaultKeychain` (`~/.docker/config.json`, gcloud, ECR, etc.).
 

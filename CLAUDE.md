@@ -25,7 +25,7 @@ The right shape of optimization: cache what we've already fetched (so repeat rea
 - `internal/layer` — per-layer indexer using `jonjohnsonjr/targz` (gsip + tarfs over ranger). Builds and persists gsip checkpoints + tarfs TOC keyed by layer digest. Layer blobs are *not* persisted; reads go through Range requests.
 - `internal/merge` — folds N layers into one merged tree applying OCI whiteouts (`.wh.<name>`) and opaque markers (`.wh..wh..opq`). Synthesizes missing parent dirs.
 - `internal/mount` — `hanwen/go-fuse/v2` NodeFS. Lazy `Lookup`-driven walk; tag→digest symlinks; merged trees mapped 1:1 to FUSE inodes.
-- `cmd/ocifuse` — entrypoint. envconfig + clog. Knobs: `PLATFORM` (default `linux/amd64`), `CACHE_DIR` (default platform XDG), `CACHE_MAX_SIZE` (disk LRU cap, default `1GB`), `MEMORY_MAX_SIZE` (in-memory chunk cache LRU cap, default `1GB`), `DEBUG`. Both size knobs accept `K/M/G/T` suffixes; `0` disables eviction.
+- `cmd/ocifuse` — entrypoint. envconfig + clog. Knobs: `PLATFORM` (default `linux/amd64`), `CACHE_DIR` (default platform XDG), `CACHE_MAX_SIZE` (disk LRU cap, default `1GB`), `MEMORY_MAX_SIZE` (in-memory chunk cache LRU cap, default `1GB`), `TAG_TTL` (kernel dentry TTL on tag symlinks, default `1m`; bounds tag-update detection latency), `DEBUG`. Size knobs accept `K/M/G/T` suffixes; `0` disables eviction.
 
 ## Testing
 

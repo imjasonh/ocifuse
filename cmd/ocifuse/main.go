@@ -16,12 +16,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/chainguard-dev/clog"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -34,11 +36,12 @@ import (
 )
 
 type config struct {
-	Platform      string `env:"PLATFORM, default=linux/amd64"`
-	CacheDir      string `env:"CACHE_DIR, default="`
-	CacheMaxSize  string `env:"CACHE_MAX_SIZE, default=1GB"`  // disk; 0 disables
-	MemoryMaxSize string `env:"MEMORY_MAX_SIZE, default=1GB"` // in-memory chunk cache; 0 disables
-	Debug         bool   `env:"DEBUG, default=false"`
+	Platform      string        `env:"PLATFORM, default=linux/amd64"`
+	CacheDir      string        `env:"CACHE_DIR, default="`
+	CacheMaxSize  string        `env:"CACHE_MAX_SIZE, default=1GB"`  // disk; 0 disables
+	MemoryMaxSize string        `env:"MEMORY_MAX_SIZE, default=1GB"` // in-memory chunk cache; 0 disables
+	TagTTL        time.Duration `env:"TAG_TTL, default=1m"`          // dentry TTL on tag symlinks
+	Debug         bool          `env:"DEBUG, default=false"`
 }
 
 func main() {
@@ -82,28 +85,42 @@ func run() error {
 	}
 	oci.SetCache(c)
 
+	level := slog.LevelInfo
+	if cfg.Debug {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 	log := clog.DefaultLogger()
-	log.Info("ocifuse starting", "mountpoint", mountpoint, "platform", cfg.Platform, "cache_dir", cacheDir, "cache_max_bytes", maxBytes, "memory_max_bytes", memBytes)
+
+	log.Info("starting",
+		"mountpoint", mountpoint,
+		"platform", cfg.Platform,
+		"cache_dir", cacheDir,
+		"cache_max_bytes", maxBytes,
+		"memory_max_bytes", memBytes,
+		"tag_ttl", cfg.TagTTL,
+	)
 
 	chunks := layer.NewChunkCache(memBytes, 1<<20)
 	fsys := &mount.Filesystem{
 		Platform: *platform,
 		Indexer:  layer.NewIndexer(c, chunks),
+		TagTTL:   cfg.TagTTL,
 	}
 
 	server, err := fsys.Mount(mountpoint, cfg.Debug)
 	if err != nil {
 		return fmt.Errorf("mount %s: %w", mountpoint, err)
 	}
-	log.Info("mounted; press ctrl-c to unmount")
+	log.Info("mounted", "mountpoint", mountpoint)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		log.Info("unmounting")
+		log.Info("unmounting", "mountpoint", mountpoint)
 		if err := server.Unmount(); err != nil {
-			log.Error("unmount", "err", err)
+			log.Error("unmount failed", "mountpoint", mountpoint, "err", err)
 		}
 	}()
 

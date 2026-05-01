@@ -43,11 +43,16 @@ import (
 type Filesystem struct {
 	Platform v1.Platform
 	Indexer  *layer.Indexer
+	// TagTTL bounds how stale a tag→digest mapping can be in the kernel's
+	// dentry cache. After this elapses, the kernel re-Lookups the tag
+	// segment and we re-fetch the manifest. Zero or negative falls back
+	// to one minute.
+	TagTTL time.Duration
 
-	mu       sync.Mutex
-	images   map[v1.Hash]*resolvedImage
-	sf       singleflight.Group // dedupes concurrent resolveImage calls per ref
-	tagSF    singleflight.Group // dedupes concurrent tag→digest lookups
+	mu     sync.Mutex
+	images map[v1.Hash]*resolvedImage
+	sf     singleflight.Group // dedupes concurrent resolveImage calls per ref
+	tagSF  singleflight.Group // dedupes concurrent tag→digest lookups
 }
 
 // resolvedImage caches the expensive parts of an image resolution: the
@@ -230,15 +235,20 @@ func tagSymlink(ctx context.Context, parent *gofs.Inode, fsys *Filesystem, ref n
 	t0 := time.Now()
 	digest, err := fsys.resolveTagDigest(ctx, ref)
 	if err != nil {
+		clog.FromContext(ctx).Error("tag resolve", "ref", ref.String(), "err", err)
 		return nil, syscall.EIO
 	}
-	clog.FromContext(ctx).Info("tagSymlink", "ref", ref.String(), "resolve", time.Since(t0))
+	clog.FromContext(ctx).Debug("resolved tag", "ref", ref.String(), "digest", digest.String(), "took", time.Since(t0))
 	target := tagSymlinkTarget(ref, digest)
 	sym := &gofs.MemSymlink{Data: []byte(target)}
 	out.Mode = gofuse.S_IFLNK
 	out.Attr.Mode = gofuse.S_IFLNK | 0o777
 	out.Attr.Size = uint64(len(target))
-	out.SetEntryTimeout(time.Minute) // tags are mutable; revalidate often
+	ttl := fsys.TagTTL
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	out.SetEntryTimeout(ttl) // tags are mutable; revalidate at this interval
 	return parent.NewInode(ctx, sym, gofs.StableAttr{Mode: gofuse.S_IFLNK}), 0
 }
 
@@ -248,9 +258,10 @@ func imageRoot(ctx context.Context, parent *gofs.Inode, fsys *Filesystem, ref na
 	t0 := time.Now()
 	ri, err := fsys.resolveImage(ctx, ref)
 	if err != nil {
+		clog.FromContext(ctx).Error("image resolve", "ref", ref.String(), "err", err)
 		return nil, syscall.EIO
 	}
-	clog.FromContext(ctx).Info("imageRoot", "ref", ref.String(), "elapsed", time.Since(t0))
+	clog.FromContext(ctx).Debug("resolved image", "ref", ref.String(), "layers", len(ri.layers), "took", time.Since(t0))
 	d := &imageDir{
 		fs:     fsys,
 		image:  ri.img,
